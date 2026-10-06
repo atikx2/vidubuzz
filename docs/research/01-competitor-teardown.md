@@ -232,3 +232,50 @@ Compliance (legal অপারেশনের জন্য বাধ্যতা
 - [ ] Tag taxonomy ভোকাবুলারি ড্রাফট
 - [ ] Next.js স্ক্যাফোল্ড + ডেটা মডেল
 - [ ] লাইভ প্রিভিউ
+
+---
+
+## 10. ইনফ্রাস্ট্রাকচার — ওরা আসলে কী ব্যবহার করে (২০২৬-১০-০৭ যাচাই)
+
+হোমপেজ ও একটা ভিডিও পেজের asset URL দেখে পাওয়া গেল।
+
+| কী | হোস্ট | আসল প্ল্যাটফর্ম |
+|---|---|---|
+| Thumbnail | `mydesi-static.b-cdn.net/thumb/{id}.jpg?class=myd` | **Bunny CDN** |
+| Storyboard frame ×10 | `static.myd-cdn.com/pview/{id}/frame_01..10.jpg?class=vtum` | নিজস্ব ডোমেইন, পেছনে Bunny Optimizer |
+| ভিডিও HD | `server35.myd-cdn.com/{id}.mp4` | **নিজস্ব নম্বরওয়ালা origin সার্ভার** |
+| ভিডিও SD | `server35.myd-cdn.com/{id}_480p.mp4` | একই সার্ভার |
+| Follow / report / favorite | `dash.mydesi.net/*.php` | আলাদা PHP ব্যাকএন্ড |
+| Ad redirect | `datav.myd-cdn.com/goo.php` | — |
+
+### যা এর থেকে বোঝা যায়
+
+1. **Cloudflare R2 নয়।** `b-cdn.net` হলো Bunny-র pull zone hostname, আর `?class=`
+   হলো Bunny Optimizer-এর নামযুক্ত image preset — অর্থাৎ ওরা thumbnail আগে থেকে
+   বানিয়ে রাখে না, রিকোয়েস্টের সময় রিসাইজ করায়।
+2. **HLS নেই।** সরাসরি progressive `.mp4`, মাত্র দুটো রেন্ডিশন (HD + SD), ইউজার
+   হাতে বদলায়। adaptive bitrate নেই।
+3. **`server35`** মানে অন্তত ৩৫টা origin বক্স — ভাড়া করা dedicated/storage সার্ভার,
+   object storage নয়। ক্লাসিক টিউব প্যাটার্ন: unmetered bandwidth-এর সস্তা বক্স।
+4. **`p4455.com` আসল ব্র্যান্ড নয়** — টাইটেল বলছে `Mydesi.net`। p4455 একটা mirror
+   ডোমেইন, ব্লক এড়ানোর জন্য।
+
+### আমাদের প্ল্যানে এর প্রভাব
+
+- **Egress-এ আমরা এগিয়ে।** Bunny প্রতি GB বিল করে; R2-তে egress চিরকাল $0।
+  বড় হলে এই পার্থক্যটাই সবচেয়ে বড়।
+- **কিন্তু একটা জিনিস আমাদের বদলানো উচিত।** আগে ঠিক করেছিলাম ১০-সেকেন্ডের
+  সেগমেন্টে HLS। R2-র বিলিং **অপারেশন-ভিত্তিক** (Class B: $0.36/মিলিয়ন,
+  ১০M ফ্রি), তাই:
+
+  | | প্রতি ভিউ GET | ১০ লক্ষ ভিউ/মাসে |
+  |---|---|---|
+  | HLS ১০s সেগমেন্ট | ~৩০ | ৩০M ops → **~$৭/মাস** |
+  | Progressive MP4 | ~৫ | ৫M ops → **$০ (ফ্রি টিয়ারে)** |
+
+  অর্থাৎ শূন্য বাজেটে p4455-এর মডেলটাই (২–৩টা MP4 রেন্ডিশন + ম্যানুয়াল
+  quality টগল) সস্তা **এবং** সহজ — সেগমেন্টিং পাইপলাইনই লাগে না।
+- **দাম দিতে হয় UX-এ:** adaptive bitrate না থাকায় দুর্বল মোবাইল নেটওয়ার্কে
+  বাফার করবে। টাকা আর ট্রাফিক এলে HLS-এ যাওয়া যাবে — R2 key layout একই থাকবে।
+- **Thumbnail আমরা আগেই বানিয়ে রাখব** (`360x203`, `240x135`), কারণ Cloudflare-এ
+  on-the-fly রিসাইজ পেইড (Cloudflare Images)। এটা আমাদের প্ল্যানে আগে থেকেই আছে।
