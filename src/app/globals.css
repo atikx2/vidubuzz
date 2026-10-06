@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink-950: #07070a;
+  --color-ink-900: #0b0b11;
+  --color-ink-850: #101018;
+  --color-ink-800: #15151f;
+  --color-ink-700: #1d1d2a;
+  --color-ink-600: #2a2a3b;
+  --color-ink-500: #3d3d55;
+
+  --color-mute-400: #8b8ba7;
+  --color-mute-300: #a9a9c2;
+
+  --color-brand-400: #c084fc;
+  --color-brand-500: #a855f7;
+  --color-brand-600: #8b35e8;
+  --color-accent-500: #ff2d78;
+}
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(168, 85, 247, 0.14), transparent 60%),
+    radial-gradient(760px 440px at 92% -12%, rgba(255, 45, 120, 0.11), transparent 62%),
+    var(--color-ink-950);
+  color: #ececf4;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* hide scrollbar but keep scrolling (meta rows, chip rails) */
+.no-bar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* number input: remove spinners on the "go to page" field */
+.no-spin::-webkit-outer-spin-button,
+.no-spin::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.no-spin {
+  -moz-appearance: textfield;
+}
+
+@keyframes vb-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.vb-fade-in {
+  animation: vb-fade-in 0.14s ease-out;
+}
