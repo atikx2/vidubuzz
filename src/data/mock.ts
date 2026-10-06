@@ -108,42 +108,8 @@ export const videos: Video[] = Array.from({ length: TOTAL_VIDEOS }, (_, i) => {
     channel: channels[Math.floor(r() * channels.length)],
     pornstars: [...picked].map((n) => pornstars[n]),
     tags: [...pickedTags],
-    rating: 62 + Math.floor(r() * 37),
-    renditions: ["480p", "720p"] as Quality[],
   } satisfies Video;
 });
-
-/** Flat root-level slug lookup — p4455 style /{slug}/ */
-const bySlug = new Map(videos.map((v) => [v.slug, v]));
-export function getVideoBySlug(slug: string): Video | undefined {
-  return bySlug.get(slug);
-}
-
-/** "More from this channel" — excludes the video being viewed. */
-export function moreFromChannel(video: Video, limit = 10): Video[] {
-  return videos.filter((v) => v.channel.slug === video.channel.slug && v.id !== video.id).slice(0, limit);
-}
-
-/**
- * Related by shared pornstars, then shared tags. Deterministic so the
- * prerendered HTML is stable between builds.
- */
-export function relatedVideos(video: Video, limit = 12): Video[] {
-  const stars = new Set(video.pornstars.map((p) => p.slug));
-  const tags = new Set(video.tags);
-  return videos
-    .filter((v) => v.id !== video.id)
-    .map((v) => ({
-      v,
-      score:
-        v.pornstars.filter((p) => stars.has(p.slug)).length * 3 +
-        v.tags.filter((t) => tags.has(t)).length,
-    }))
-    .filter((x) => x.score > 0)
-    .sort((a, b) => b.score - a.score || b.v.views - a.v.views)
-    .slice(0, limit)
-    .map((x) => x.v);
-}
 
 export function getVideoPage(page: number, perPage: number) {
   const totalPages = Math.max(1, Math.ceil(videos.length / perPage));

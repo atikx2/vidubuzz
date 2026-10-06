@@ -31,8 +31,4 @@ export interface Video {
   channel: Channel;
   pornstars: Pornstar[];
   tags: string[];
-  /** 0-100, shown as a thumbs-up percentage like every tube site does */
-  rating: number;
-  /** which MP4 renditions actually exist in storage — never guessed */
-  renditions: Quality[];
 }
