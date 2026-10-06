@@ -25,23 +25,48 @@
  * Cloudflare by changing these two variables to the same value.
  */
 
-/** Trailing slashes stripped so join() never produces a double slash. */
-function clean(u: string | undefined, fallback: string): string {
-  return (u && u.trim() ? u.trim() : fallback).replace(/\/+$/, "");
+/**
+ * Each base may be a comma-separated list of origins, e.g.
+ *   NEXT_PUBLIC_VIDEO_BASE="https://v1.vidubuzz.com,https://v2.vidubuzz.com"
+ *
+ * Files are spread across them by a hash of the object key, so a given file
+ * always resolves to the same origin (stable URLs => stable CDN cache, stable
+ * SEO). Useful for spreading a library over several buckets or providers, or
+ * for migrating B2 -> R2 one shard at a time.
+ */
+function parseBases(v: string | undefined): string[] {
+  return (v ?? "")
+    .split(",")
+    .map((s) => s.trim().replace(/\/+$/, ""))
+    .filter(Boolean);
 }
 
-/**
- * Images: thumbnails, storyboard frames, avatars.
- * B2 example:  https://f003.backblazeb2.com/file/vidubuzz-media
- * R2 example:  https://cdn.vidubuzz.com
- */
-export const IMAGE_BASE = clean(process.env.NEXT_PUBLIC_IMAGE_BASE, "");
+/** Images: thumbnails, storyboard frames, avatars. */
+export const IMAGE_BASES = parseBases(process.env.NEXT_PUBLIC_IMAGE_BASE);
 
-/**
- * Video: the MP4 renditions. Keep this on a hostname Cloudflare does not proxy.
- * B2 example:  https://f003.backblazeb2.com/file/vidubuzz-video
- */
-export const VIDEO_BASE = clean(process.env.NEXT_PUBLIC_VIDEO_BASE, "");
+/** Video: the MP4 renditions. */
+export const VIDEO_BASES = parseBases(process.env.NEXT_PUBLIC_VIDEO_BASE);
+
+/** First origin, or "" — kept for callers that just want "is it configured". */
+export const IMAGE_BASE = IMAGE_BASES[0] ?? "";
+export const VIDEO_BASE = VIDEO_BASES[0] ?? "";
+
+/** FNV-1a. Small, stable across runtimes, good enough to spread keys evenly. */
+function hashKey(key: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+
+/** Deterministically pick one origin for a key. */
+function pickBase(bases: string[], key: string): string | null {
+  if (bases.length === 0) return null;
+  if (bases.length === 1) return bases[0];
+  return bases[hashKey(key) % bases.length];
+}
 
 /**
  * letsporn-style bucketing: 1,000 ids per directory. Keeps any single prefix
@@ -98,14 +123,16 @@ export function avatarKey(kind: "models" | "content_sources", id: number): strin
 export function imageUrl(key: string | null | undefined): string | null {
   if (!key) return null;
   if (/^https?:\/\//.test(key)) return key;
-  return IMAGE_BASE ? `${IMAGE_BASE}/${key.replace(/^\/+/, "")}` : null;
+  const base = pickBase(IMAGE_BASES, key);
+  return base ? `${base}/${key.replace(/^\/+/, "")}` : null;
 }
 
 /** Absolute URL for a video key. Null until VIDEO_BASE is configured. */
 export function videoUrl(key: string | null | undefined): string | null {
   if (!key) return null;
   if (/^https?:\/\//.test(key)) return key;
-  return VIDEO_BASE ? `${VIDEO_BASE}/${key.replace(/^\/+/, "")}` : null;
+  const base = pickBase(VIDEO_BASES, key);
+  return base ? `${base}/${key.replace(/^\/+/, "")}` : null;
 }
 
 /**
@@ -125,5 +152,5 @@ export function videoSources(
 }
 
 /** True once real media is wired up — handy for conditional UI. */
-export const mediaConfigured = Boolean(IMAGE_BASE);
-export const videoConfigured = Boolean(VIDEO_BASE);
+export const mediaConfigured = IMAGE_BASES.length > 0;
+export const videoConfigured = VIDEO_BASES.length > 0;
