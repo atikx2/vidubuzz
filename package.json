@@ -7,9 +7,10 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
-    "cf:build": "opennextjs-cloudflare build",
-    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview -- --config wrangler.opennext.jsonc",
-    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy -- --config wrangler.opennext.jsonc",
+    "cf:enable": "cp infra/open-next.config.ts open-next.config.ts",
+    "cf:build": "npm run cf:enable && opennextjs-cloudflare build",
+    "cf:preview": "npm run cf:enable && opennextjs-cloudflare build && opennextjs-cloudflare preview -- --config wrangler.opennext.jsonc",
+    "cf:deploy": "npm run cf:enable && opennextjs-cloudflare build && opennextjs-cloudflare deploy -- --config wrangler.opennext.jsonc",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
     "build:static": "STATIC_EXPORT=1 next build",
     "cf:deploy:static": "npm run build:static && wrangler deploy"

@@ -63,7 +63,8 @@ It was litigated three times already and he found it tiresome.
 
 ### Live status
 
-**Not deployed yet.** This is the active blocker. See §8.
+**Not verified live yet.** PR #1 is merged, the deploy failure is fixed, and the
+next Workers Builds run is the confirmation. See §8.
 
 ### What is built
 
@@ -134,6 +135,10 @@ src/data/
 
 docs/research/        competitor teardowns (p4455, letsporn)
 docs/setup/           Cloudflare, costs, B2 vs R2, B2+CDN walkthrough
+
+infra/
+  open-next.config.ts OpenNext adapter config, kept OUT of the repo root on
+                      purpose — see §8. `npm run cf:enable` copies it back.
 ```
 
 ### Motion rules
@@ -185,9 +190,10 @@ run in the browser over in-bundle data; no request-time DB work.
 
 | | **Static (default, in use)** | **OpenNext (for later)** |
 |---|---|---|
-| build | `npm run build:static` | `npm run cf:build` |
+| build | `npm run build:static` | `npm run cf:build` (runs `cf:enable` first) |
 | output | `out/` — real `.html` | `.open-next/` |
 | config | `wrangler.jsonc` (no `main`) | `wrangler.opennext.jsonc` |
+| adapter config | none at the root — **required** | `open-next.config.ts` at the root |
 | deploy | `npx wrangler deploy` | `npm run cf:deploy` |
 | Worker runs per page view? | **no** | yes (cache read, no React render) |
 | 10 ms limit applies? | **no** | yes, but comfortably under |
@@ -372,73 +378,116 @@ from there rather than rewriting.
 
 ---
 
-## 8. 🔴 ACTIVE BLOCKER — read this first
+## 8. ✅ DEPLOY BLOCKER — SOLVED (2026-10-07)
 
-**The site has never deployed successfully.**
+The site has not been verified live yet, but the failure that blocked every
+deploy is found, reproduced, fixed and verified locally. Next: watch the next
+Workers Builds run.
 
-### What is set up
+### The root cause (this was "problem 3, unexplained")
 
-Cloudflare **Workers** project `vidubuzz` (not Pages), connected to GitHub
-`atikx2/vidubuzz` via Workers Builds. Account id in the dashboard URL:
-`3c3dd5db09d87b8d1aee5b4b2459b369`.
+**Wrangler's framework autoconfiguration was hijacking `wrangler deploy`.**
 
-Build settings as of the last screenshot:
-- Build command: `npm run build:static`
-- Deploy command: `npx wrangler deploy`
-- Root directory: `/`
+Wrangler 4.x ships with `autoconfig: true` by default. On deploy it inspects
+the project root and, when *all three* of these are present:
 
-### Problem 1 — `main` is empty (confirmed)
+1. `next.config.(ts|js|mts|mjs)`
+2. `open-next.config.(ts|js)` **at the repo root**
+3. `@opennextjs/cloudflare` resolvable in `node_modules`
 
-`main` contains **only `README.md`**. No `package.json`, so
-`npm run build:static` dies with `npm error code ENOENT`.
+...it prints `OpenNext project detected, calling opennextjs-cloudflare deploy`
+and re-routes the command. `build:static` never emits `.open-next/`, so the
+delegated deploy dies with:
 
-All the work lives on branch **`arena/1311b051-vidubuzz`** and in
-**PR #1** → https://github.com/atikx2/vidubuzz/pull/1
-
-**The owner was about to merge that PR.** If it is merged, `main` has
-everything and this problem is gone. Check first:
-
-```bash
-git ls-tree -r --name-only origin/main | head
+```
+ERROR Could not find compiled Open Next config, did you run the build command?
 ```
 
-### Problem 2 — deploy command mismatch (fixed, verify it stuck)
+That is the exact tail of the Cloudflare build log (08:04 — build step green,
+deploy step red). It also explains why the previous session could not find it:
+**`wrangler deploy --dry-run` short-circuits before the delegation check**
+(the guard reads `args.autoconfig && !args.config && !args.dryRun`), and a real
+deploy cannot complete in the sandbox because there is no outbound network.
+Only a real, non-dry-run deploy shows it.
 
-`wrangler.jsonc` used to point `main` at `.open-next/worker.js`, which
-`build:static` never produces, so the deploy step failed even when the build
-passed. Fixed by swapping which config is the default:
+A present `wrangler.jsonc` does **not** prevent it — the check is on the file
+system, not on config presence. It can only be avoided with an explicit
+`--config` flag, and Cloudflare's stock deploy command is a bare
+`npx wrangler deploy`.
+
+### The fix
+
+`open-next.config.ts` moved out of the root to **`infra/open-next.config.ts`**.
+The root now has `next.config.ts` but no `open-next.config.ts`, so the triple
+condition fails and `wrangler deploy` takes the plain static-assets path.
+
+Consequences, all handled:
+
+- `npm run cf:enable` copies the template back to the root (`cp`).
+  `cf:build`, `cf:preview` and `cf:deploy` all run it first, so the OpenNext
+  path still works with one command, unchanged in spirit.
+- The filename matters: OpenNext hardcodes `open-next.config.ts`
+  (`OPEN_NEXT_CONFIG_FILE_NAME`). Renaming it to `.mts` or `.js` is **not** a
+  working alternative — do not try that as a fix.
+- **Never move it back to the root** while the static config is the default.
+  Warnings are in the file itself, in `wrangler.jsonc`, and here.
+
+### Verification (local, both directions)
+
+| check | before fix | after fix |
+|---|---|---|
+| `npx wrangler deploy` | `OpenNext project detected` → ERROR | no delegation; proceeds to the Cloudflare API |
+| `npx wrangler deploy --dry-run` | ✅ — false negative | ✅ 92 files from `out/`, 0.31 KiB, no worker |
+| `npm run build:static` | ✅ 23 routes | ✅ 23 routes, 60 files in `out/` |
+
+The API call itself cannot be completed here — no outbound network beyond
+localhost, and no Cloudflare credentials. Expected.
+
+### What success looks like on the next build
+
+Build step green, then a deploy step **without** the "OpenNext project
+detected" line, then a `workers.dev` URL serving the homepage. If a red check
+returns, get the Cloudflare build log again — do not guess at it.
+
+### Historical detail — problems 1 and 2, both closed
+
+**Problem 1 — `main` was empty.** PR #1 merged on 2026-10-07 07:57 UTC, so
+`main` now carries the full project. Confirmed with
+`git ls-tree -r --name-only origin/main`. Closed.
+
+**Problem 2 — deploy command mismatch.** `wrangler.jsonc` used to point `main`
+at `.open-next/worker.js`, which `build:static` never produces, so the deploy
+step failed even when the build passed. Fixed by making the static config the
+default:
 
 - `wrangler.jsonc` → static assets from `out/`, **no `main`**
 - `wrangler.opennext.jsonc` → the Worker build
 
-So Cloudflare's stock `npx wrangler deploy` now works with **no dashboard
-changes**. Verify with:
+Cloudflare's stock `npx wrangler deploy` now works with **no dashboard
+changes**. Confirmed by the build log itself: the deploy step did pick up
+`wrangler.jsonc` and the `out/` assets — it only failed later, inside the
+OpenNext delegation. Closed.
+
+Verify the static path still with:
 
 ```bash
 npm run build:static && npx wrangler deploy --dry-run
 # expect: Read 92 files from out/, Total Upload ~0.31 KiB, no worker bundle
 ```
 
-### Problem 3 — still unexplained ❗
+### Cloudflare project facts
 
-The Workers Builds check on PR #1 **kept failing** even after problem 2 was
-fixed. The previous agent could not see why — no access to the owner's
-Cloudflare account, and everything passes locally:
+Cloudflare **Workers** project `vidubuzz` (not Pages), connected to GitHub
+`atikx2/vidubuzz` via Workers Builds. Account id in the dashboard URL:
+`3c3dd5db09d87b8d1aee5b4b2459b369`.
 
-| check | result |
-|---|---|
-| `npm run build:static` | ✅ 22 html files |
-| `npx wrangler deploy --dry-run` | ✅ 92 files, 0.31 KiB, no worker |
-| `npx wrangler versions upload --dry-run` | ✅ |
-| `npm run cf:build` | ✅ |
+Build settings — all correct as-is, **no dashboard changes needed**:
+- Build command: `npm run build:static`
+- Deploy command: `npx wrangler deploy`
+- Root directory: `/`
 
-**First thing to do: ask the owner for the Cloudflare build log.** There is a
-**"Copy build log"** button on the build page. Do not guess at the cause —
-the previous session burned several turns speculating. Get the log.
+Note a red check does **not** block merging a PR (`MERGEABLE` + `UNSTABLE`).
 
-Note a red check does **not** block merging PR #1 (`MERGEABLE` + `UNSTABLE`).
-
----
 
 ## 9. Deployment reference
 
@@ -447,6 +496,14 @@ Note a red check does **not** block merging PR #1 (`MERGEABLE` + `UNSTABLE`).
 ```bash
 npm run build:static          # STATIC_EXPORT=1 next build  -> out/
 npx wrangler deploy           # reads wrangler.jsonc, assets only
+```
+
+**This only works while `open-next.config.ts` is absent from the repo root.**
+If that file is at the root, `wrangler deploy` hands off to OpenNext and fails —
+see §8. Check before debugging anything else:
+
+```bash
+ls open-next.config.ts 2>/dev/null && echo "⚠️  move it to infra/" || echo "root is clean ✅"
 ```
 
 Cloudflare dashboard equivalents: build `npm run build:static`,
@@ -460,9 +517,18 @@ That confused the owner once.
 ### OpenNext (later)
 
 ```bash
-npm run cf:build
-npm run cf:deploy
+npm run cf:build              # = cf:enable + opennextjs-cloudflare build
+npm run cf:deploy             # = cf:enable + build + deploy (wrangler.opennext.jsonc)
 ```
+
+`cf:enable` copies `infra/open-next.config.ts` back to the repo root, which the
+adapter requires by that exact filename. `cf:build` / `cf:preview` / `cf:deploy`
+all run it for you.
+
+⚠️ After running any `cf:*` build, the root **has** an `open-next.config.ts`
+again, which re-arms the wrangler autoconfiguration hijack. It is gitignored
+implicitly by not being committed — but do not commit or leave it if you switch
+back to the static path. `git status` is the check.
 
 `wrangler.opennext.jsonc` has `d1_databases` and `r2_buckets` pre-staged as
 comments, plus `WORKER_SELF_REFERENCE` (omitting it causes 500s on
@@ -520,13 +586,23 @@ chips → unique prose → "More by {channel}" (10) → related grid.
 
 ## 12. Gotchas that cost the previous session time
 
-- **The sandbox wipes `node_modules` and resets `.git` between tool calls.**
-  Run `[ -d node_modules/next ] || npm ci` before builds. If a push is
-  rejected as non-fast-forward, `git fetch` then rebase onto
-  `origin/arena/1311b051-vidubuzz`; the working tree is usually already
-  correct and conflicts resolve to "take mine".
-- **bash has no outbound network** except localhost. `curl` to external hosts
-  returns empty with exit 0. Use the web tools for research.
+- **⚠️ `wrangler deploy` silently reroutes itself to OpenNext when
+  `open-next.config.ts` sits in the repo root.** The kill shot of §8. It hits
+  only real deploys — not `--dry-run` — so local dry-runs give a false all-clear.
+  If a Cloudflare deploy fails with "Could not find compiled Open Next config",
+  that is this, every time.
+- **The sandbox wipes `node_modules`, `out/` and the git objects between tool
+  calls.** Confirmed 2026-10-07: after a full build, the next tool call had a
+  shallow 1-commit repo again and no `node_modules`. So: run
+  `[ -d node_modules/next ] || npm ci` before builds, `git fetch --unshallow`
+  when you need history (`bde6594` is invisible in the shallow clone), and
+  reboot the dev server (it dies with the sandbox) before showing a preview.
+  If a push is rejected as non-fast-forward, `git fetch` then rebase; the
+  working tree is usually already correct and conflicts resolve to "take mine".
+- **bash has no outbound network** except localhost — confirmed again: even
+  `api.cloudflare.com` returns nothing (curl exit 0, HTTP 000). GitHub works
+  only because `gh` has a proxy. So you cannot test a real Cloudflare deploy
+  from here; you can only prove the *delegation* is gone.
 - `fetch_page` returns Markdown, not raw HTML — you cannot inspect `<head>`,
   canonical tags, hreflang or JSON-LD on competitor sites.
 - `lalamasa.mobi` is a dead domain. Do not re-fetch.
@@ -567,7 +643,11 @@ thin-page guard, and eventually HLS.
 
 - Language / market: Bangla, English, or both?
 - Which studio affiliate network supplies the feed?
-- Whether the Cloudflare build failure (§8) is resolved.
+- Whether the next Workers Builds run after the §8 fix goes green (asked
+  2026-10-07; he pasted the failing build log and is watching the next one).
+
+Answered since the last handoff: the Cloudflare build failure is diagnosed and
+fixed — see §8. The owner merged PR #1 on 2026-10-07.
 
 Do not re-ask the questions he has already skipped — he ignored a prompt about
 niche direction and stack once, and the stack is now locked anyway.

@@ -16,6 +16,12 @@ cloudflare-env.d.ts
 .dev.vars
 .dev.vars.*
 
+# `npm run cf:enable` copies the OpenNext adapter config to the root. It must
+# never be committed from there — its presence in the root makes `wrangler
+# deploy` reroute to OpenNext and break the static deploy. See AGENTS.md §8.
+# Leading slash = root only, so infra/open-next.config.ts stays tracked.
+/open-next.config.ts
+
 # env
 .env
 .env*.local
