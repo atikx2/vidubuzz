@@ -449,6 +449,45 @@ Build step green, then a deploy step **without** the "OpenNext project
 detected" line, then a `workers.dev` URL serving the homepage. If a red check
 returns, get the Cloudflare build log again — do not guess at it.
 
+### Status after the fix — 2026-10-07 08:16 UTC
+
+PR #2 carries the fix. Its Workers Builds check on the branch **also failed**,
+and here is the part that wastes time if you don't know it:
+
+**These check runs carry no error text at all.** `output.text` is null,
+`output.summary` holds only the dashboard links, and `annotations` is empty.
+`started_at` always equals `completed_at`, so the duration means nothing either.
+The log exists only behind `details_url` in the Cloudflare dashboard.
+`gh` can tell you *that* a build failed and which build id it was — nothing more.
+Do not burn turns mining GitHub for a message that is not there.
+
+What was ruled out locally, so nobody re-tests it:
+
+| suspect | verdict |
+|---|---|
+| devDeps missing (prod `NODE_ENV` in the build container) | ❌ ruled out — CF installed 396 packages, dev included; build passes without devDeps anyway |
+| install scripts blocked (`npm warn allow-scripts`, esbuild/workerd postinstall) | ❌ ruled out — `npm ci --ignore-scripts` still builds and dry-run deploys fine |
+| `wrangler versions upload` (what a preview-branch build runs) | ❌ ruled out — passes with the root config gone |
+| `wrangler.jsonc` malformed / assets path wrong | ❌ ruled out — dry-run reads 92 files from `out/` |
+
+The local repro *is* unambiguous, so the delegation itself is fixed: with
+`open-next.config.ts` at the root, `npx wrangler deploy` prints "OpenNext
+project detected"; with it moved to `infra/`, the very same command goes
+straight to the API. **If a build still fails, read its log before concluding
+the fix didn't work — there may be a second, independent cause.** The owner was
+asked for the log of the post-fix build.
+
+### Fallback if Workers Builds keeps failing: GitHub Actions
+
+Cloudflare Workers Builds is a black box from here. If it keeps failing without
+a readable cause, the escape hatch is a GitHub Actions workflow running
+`cloudflare/wrangler-action` — the logs land in GitHub, where `gh run view
+--log` can read them in full. Needs `CLOUDFLARE_API_TOKEN` (the "Edit
+Cloudflare Workers" template) and `CLOUDFLARE_ACCOUNT_ID`
+`3c3dd5db09d87b8d1aee5b4b2459b369` as repo secrets. **The owner creates the
+token himself and pastes it into GitHub — never ask him to send it in chat.**
+Then disable the Workers Builds integration so the two don't fight.
+
 ### Historical detail — problems 1 and 2, both closed
 
 **Problem 1 — `main` was empty.** PR #1 merged on 2026-10-07 07:57 UTC, so
