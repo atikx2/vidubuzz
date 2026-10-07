@@ -11,7 +11,8 @@
     "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "cf:typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts",
-    "build:static": "STATIC_EXPORT=1 next build"
+    "build:static": "STATIC_EXPORT=1 next build",
+    "cf:deploy:static": "npm run build:static && wrangler deploy -c wrangler.static.jsonc"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.2.0",
