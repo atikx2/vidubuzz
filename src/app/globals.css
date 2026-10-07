@@ -1,0 +1,123 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------
+   Design tokens. Dark-first: :root IS the dark theme, so the site
+   never flashes white and we never ship a second theme's CSS.
+   --------------------------------------------------------------- */
+:root {
+  --radius: 0.75rem;
+
+  --background: oklch(0.09 0.012 285);
+  --foreground: oklch(0.95 0.005 285);
+
+  --card: oklch(0.13 0.014 285);
+  --card-foreground: oklch(0.95 0.005 285);
+
+  --popover: oklch(0.13 0.014 285);
+  --popover-foreground: oklch(0.95 0.005 285);
+
+  --primary: oklch(0.63 0.22 303);
+  --primary-foreground: oklch(0.99 0 0);
+
+  --secondary: oklch(0.2 0.016 285);
+  --secondary-foreground: oklch(0.95 0.005 285);
+
+  --muted: oklch(0.2 0.016 285);
+  --muted-foreground: oklch(0.68 0.02 285);
+
+  --accent: oklch(0.65 0.24 5);
+  --accent-foreground: oklch(0.99 0 0);
+
+  --destructive: oklch(0.6 0.23 25);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(1 0 0 / 7%);
+  --input: oklch(1 0 0 / 10%);
+  --ring: oklch(0.63 0.22 303);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* brand ramp used by gradients */
+  --color-brand-400: #c084fc;
+  --color-brand-500: #a855f7;
+  --color-brand-600: #8b35e8;
+  --color-accent-500: #ff2d78;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    background-image:
+      radial-gradient(900px 500px at 12% -8%, rgba(168, 85, 247, 0.14), transparent 60%),
+      radial-gradient(760px 440px at 92% -12%, rgba(255, 45, 120, 0.11), transparent 62%);
+    background-attachment: fixed;
+  }
+
+  /* Respect users who ask for less motion — Framer Motion reads this too. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* hide scrollbar but keep scrolling (meta rails, chip rows) */
+  .no-bar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* number input without spinners */
+  .no-spin::-webkit-outer-spin-button,
+  .no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .no-spin {
+    -moz-appearance: textfield;
+  }
+}
