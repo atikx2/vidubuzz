@@ -115,8 +115,16 @@ R2 (ভিডিও আপলোড) ধরার সময় $5/মাসে�
 
 ### ধাপ ২.২ — GitHub-এ কোড (✅ করা আছে)
 
-কোড ইতিমধ্যে `arena/1311b051-vidubuzz` ব্রাঞ্চে push করা। কনফিগ ফাইলগুলোও আছে:
-`wrangler.jsonc`, `open-next.config.ts`, আর `package.json`-এ `cf:*` স্ক্রিপ্ট।
+কোড ইতিমধ্যে `main` ব্রাঞ্চে merge করা। কনফিগ ফাইলগুলোও আছে:
+`wrangler.jsonc`, `infra/open-next.config.ts`, আর `package.json`-এ `cf:*` স্ক্রিপ্ট।
+
+> ⚠️ **গুরুত্বপূর্ণ:** `open-next.config.ts` ইচ্ছাকৃতভাবে রিপো-রুটে **নেই**, `infra/`-তে
+> আছে। কারণ wrangler ডিফল্টভাবে framework autoconfiguration চালায় — রুটে
+> `next.config.ts` + `open-next.config.ts` দুটোই থাকলে `npx wrangler deploy`
+> নিজে deploy না করে `opennextjs-cloudflare deploy`-কে ডাকে, আর static বিল্ড
+> `.open-next/` বানায় না বলে সেটা `Could not find compiled Open Next config`
+> দিয়ে fail করে। OpenNext পথ ব্যবহার করতে হলে আগে `npm run cf:enable`। বিস্তারিত
+> `AGENTS.md` §8-এ।
 
 ### ধাপ ২.৩ — Worker তৈরি ও GitHub যুক্ত করা
 
@@ -295,8 +303,8 @@ bucket = floor(id/1000)*1000
 - [x] `@opennextjs/cloudflare` + `wrangler` ইনস্টল
 - [x] Next 15.5.27-এ আপগ্রেড (adapter-এর পিয়ার রিকোয়ারমেন্ট)
 - [x] `wrangler.jsonc` — assets binding, nodejs_compat, self-reference
-- [x] `open-next.config.ts`
-- [x] `cf:build` / `cf:preview` / `cf:deploy` স্ক্রিপ্ট
+- [x] `infra/open-next.config.ts` (রুটে নয় — উপরের সতর্কতা দেখুন)
+- [x] `cf:enable` / `cf:build` / `cf:preview` / `cf:deploy` স্ক্রিপ্ট
 - [x] `.gitignore` — `.open-next/`, `.wrangler/`, `.dev.vars`
 - [x] বিল্ড যাচাই: **সফল**, bundle 826 KB gzipped (লিমিট 64 MiB)
 - [x] `wrangler deploy --dry-run`: **পাস**

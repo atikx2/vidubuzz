@@ -13,6 +13,15 @@
  * `wrangler.opennext.jsonc` is the other path — the OpenNext Worker build,
  * for when server-side features (ISR, API routes, the admin panel) are
  * actually needed. Use it with `npm run cf:deploy`.
+ *
+ * ⚠️  DO NOT put `open-next.config.ts` back in the repository root while this
+ * static config is the default. Wrangler's framework autoconfiguration is on
+ * by default and, seeing `next.config.ts` + `open-next.config.ts` + the
+ * installed adapter, it hijacks `wrangler deploy` and runs
+ * `opennextjs-cloudflare deploy` instead — which fails with "Could not find
+ * compiled Open Next config", because `build:static` never emits `.open-next/`.
+ * A present `wrangler.jsonc` does not stop it. The OpenNext config template
+ * lives at `infra/open-next.config.ts`; `npm run cf:build` copies it back.
  */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
