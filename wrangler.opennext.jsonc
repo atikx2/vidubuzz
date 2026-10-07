@@ -1,0 +1,61 @@
+/**
+ * OpenNext Worker build — NOT the default.
+ *
+ * Use this once the site needs server-side features (ISR, API routes, the
+ * admin panel). Until then `wrangler.jsonc` ships the site as pure static
+ * assets, which costs nothing and cannot hit the 10 ms CPU limit.
+ *
+ *   npm run cf:deploy
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vidubuzz",
+  "main": ".open-next/worker.js",
+
+  // 2024-09-23 or later activates the full Node.js compatibility layer.
+  "compatibility_date": "2025-03-25",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+  // Lets the Worker serve the static assets OpenNext emits.
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+
+  // Required by the adapter's internal routing — without it you get 500s.
+  "services": [
+    {
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "vidubuzz"
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  }
+
+  // ---------------------------------------------------------------
+  // Uncomment each block as you create the resource in the dashboard
+  // (see docs/setup/04-cloudflare-setup.md for the exact commands).
+  // ---------------------------------------------------------------
+  //
+  // "d1_databases": [
+  //   {
+  //     "binding": "DB",
+  //     "database_name": "vidubuzz-db",
+  //     "database_id": "<paste-from-wrangler-d1-create>"
+  //   }
+  // ],
+  //
+  // "r2_buckets": [
+  //   {
+  //     "binding": "MEDIA",
+  //     "bucket_name": "vidubuzz-media"
+  //   },
+  //   {
+  //     // Used by OpenNext for the ISR / incremental cache
+  //     "binding": "NEXT_INC_CACHE_R2_BUCKET",
+  //     "bucket_name": "vidubuzz-cache"
+  //   }
+  // ]
+}

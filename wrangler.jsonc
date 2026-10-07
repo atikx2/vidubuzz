@@ -1,52 +1,39 @@
+/**
+ * Static-assets-only deployment.
+ *
+ * Pairs with `npm run build:static`, which emits real .html into `out/`.
+ * There is deliberately no `main` here: with no Worker script, Cloudflare
+ * serves every request straight from the assets layer. Your code never runs,
+ * so the 10 ms CPU limit and the 100k requests/day cap do not apply, and the
+ * whole thing costs nothing.
+ *
+ * This is the DEFAULT config, so Cloudflare's stock deploy command
+ * `npx wrangler deploy` works with no dashboard changes.
+ *
+ * `wrangler.opennext.jsonc` is the other path — the OpenNext Worker build,
+ * for when server-side features (ISR, API routes, the admin panel) are
+ * actually needed. Use it with `npm run cf:deploy`.
+ */
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "vidubuzz",
-  "main": ".open-next/worker.js",
-
-  // 2024-09-23 or later activates the full Node.js compatibility layer.
   "compatibility_date": "2025-03-25",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 
-  // Lets the Worker serve the static assets OpenNext emits.
   "assets": {
-    "directory": ".open-next/assets",
-    "binding": "ASSETS"
-  },
+    "directory": "./out",
 
-  // Required by the adapter's internal routing — without it you get 500s.
-  "services": [
-    {
-      "binding": "WORKER_SELF_REFERENCE",
-      "service": "vidubuzz"
-    }
-  ],
+    // We build with `trailingSlash: true`, so every route is a directory with
+    // an index.html. auto-trailing-slash resolves /page/5 and /page/5/ to the
+    // same file instead of 404ing on one of them.
+    "html_handling": "auto-trailing-slash",
+
+    // Serve the prerendered 404 page for unknown paths. Not "single-page-
+    // application": this is a multi-page static site and SPA mode would
+    // return 200 for every bad URL, which wrecks crawling.
+    "not_found_handling": "404-page"
+  },
 
   "observability": {
     "enabled": true
   }
-
-  // ---------------------------------------------------------------
-  // Uncomment each block as you create the resource in the dashboard
-  // (see docs/setup/04-cloudflare-setup.md for the exact commands).
-  // ---------------------------------------------------------------
-  //
-  // "d1_databases": [
-  //   {
-  //     "binding": "DB",
-  //     "database_name": "vidubuzz-db",
-  //     "database_id": "<paste-from-wrangler-d1-create>"
-  //   }
-  // ],
-  //
-  // "r2_buckets": [
-  //   {
-  //     "binding": "MEDIA",
-  //     "bucket_name": "vidubuzz-media"
-  //   },
-  //   {
-  //     // Used by OpenNext for the ISR / incremental cache
-  //     "binding": "NEXT_INC_CACHE_R2_BUCKET",
-  //     "bucket_name": "vidubuzz-cache"
-  //   }
-  // ]
 }
